@@ -30,7 +30,7 @@ O projeto utiliza **Laravel 12** no backend e **Leaflet.js** no frontend para ex
 
 1. Clone o repositório:
 
-```bash
+
 
 git clone https://github.com/Setanta01/trabEXT.git
 cd trabEXT
