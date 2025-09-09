@@ -30,7 +30,7 @@ O projeto utiliza **Laravel 12** no backend e **Leaflet.js** no frontend para ex
 
 1. Clone o repositório:
 
-
+```bash
 
 git clone https://github.com/Setanta01/trabEXT.git
 cd trabEXT
@@ -68,6 +68,7 @@ O sistema escolherá aleatoriamente uma cidade para você encontrar.
 Navegue pelo mapa e tente localizar a cidade correta.
 
 O tempo gasto e as cidades encontradas serão registrados no backend.
+```
 
 Autor
 Setanta01 – Trabalho pessoal de faculdade (disciplina Extensão 2)
