@@ -12,7 +12,8 @@ O projeto utiliza **Laravel 12** no backend e **Leaflet.js** no frontend para ex
 
 - **Backend:** Laravel 12 (PHP)  
 - **Frontend:** HTML, CSS, JavaScript, Leaflet.js  
-- **Banco de dados:** MySQL (ou outro compatível com Laravel)  
+- **Banco de dados:** MySQL
+- **Gerenciamento de assets:** Node.js e npm 
 - **Controle de versão:** Git/GitHub  
 
 ---
@@ -48,9 +49,10 @@ Ajuste as configurações de banco de dados no .env.
 ```
 php artisan migrate
 ```
-5.Inicie o servidor Laravel:
+5.Inicie o servidor Laravel e o npm:
 ```
 php artisan serve
+npm run dev
 O projeto estará disponível em http://127.0.0.1:8000.
 ```
 
