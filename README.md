@@ -29,38 +29,32 @@ O projeto utiliza **Laravel 12** no backend e **Leaflet.js** no frontend para ex
 ## Como Rodar o Projeto
 
 1. Clone o repositório:
-
-```bash
-
+```
 git clone https://github.com/Setanta01/trabEXT.git
 cd trabEXT
-Instale as dependências PHP e Node:
-
-bash
-Copiar código
+```
+2. Instale as dependências PHP e Node:
+```
 composer install
 npm install
-Configure o arquivo .env:
-
-bash
-Copiar código
+```
+3. Configure o arquivo .env:
+```
 cp .env.example .env
 php artisan key:generate
 Ajuste as configurações de banco de dados no .env.
-
-Rode as migrations:
-
-bash
-Copiar código
+```
+4. Rode as migrations:
+```
 php artisan migrate
-Inicie o servidor Laravel:
-
-bash
-Copiar código
+```
+5.Inicie o servidor Laravel:
+```
 php artisan serve
 O projeto estará disponível em http://127.0.0.1:8000.
+```
 
-Como Jogar
+## Como Jogar
 Abra o jogo no navegador.
 
 O sistema escolherá aleatoriamente uma cidade para você encontrar.
@@ -68,10 +62,11 @@ O sistema escolherá aleatoriamente uma cidade para você encontrar.
 Navegue pelo mapa e tente localizar a cidade correta.
 
 O tempo gasto e as cidades encontradas serão registrados no backend.
-```
+
 
 Autor
 Setanta01 – Trabalho pessoal de faculdade (disciplina Extensão 2)
+
 E-mail: leovanderleysmurf@gmail.com
 
 Observações
