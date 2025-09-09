@@ -64,12 +64,13 @@ Navegue pelo mapa e tente localizar a cidade correta.
 O tempo gasto e as cidades encontradas serão registrados no backend.
 
 
-Autor
-Setanta01 – Trabalho pessoal de faculdade (disciplina Extensão 2)
 
-E-mail: leovanderleysmurf@gmail.com
+## Autor
+Leo Uchoa – Trabalho pessoal de faculdade (disciplina Extensão 2)
 
-Observações
+E-mail: leouthedev@gmail.com
+
+## Observações
 Projeto somente para fins acadêmicos.
 
 Funciona em qualquer navegador moderno.
