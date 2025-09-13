@@ -115,38 +115,56 @@ Route::get('/api/start', function () {
 
     session([
         'rodada' => $cidade,
-        'fim'    => $fim
+        'fim'    => $fim,
+        'found'  => false,
+        'result' => null, // 'found' | 'expired' | null
+        'finished_at' => null
     ]);
 
     return response()->json([
         'id'   => $cidade['id'],
         'nome' => $cidade['nome'],
         'tempo'=> $tempo,
-        'fim'  => $fim->timestamp // timestamp UNIX
+        'fim'  => $fim->timestamp
     ]);
 });
 
 Route::get('/api/status', function () {
     $cidade = session('rodada');
     $fim = session('fim');
+    $found = session('found', false);
+    $result = session('result', null);
 
-    if(!$cidade || !$fim) {
+    if (!$cidade || !$fim) {
         return response()->json(['active'=>false]);
+    }
+
+    // Se já foi marcado como encontrado, devolve esse estado imediatamente
+    if ($found || $result === 'found') {
+        return response()->json([
+            'active' => false,
+            'found'  => true,
+            'nome'   => $cidade['nome'],
+            'result' => 'found'
+        ]);
     }
 
     $restante = now()->diffInRealSeconds($fim, false);
 
-    if($restante <= 0) {
+    if ($restante <= 0) {
+        // marca como expirado para impedir checks futuros
+        session(['result' => 'expired', 'finished_at' => now()]);
         return response()->json([
             'active' => false,
             'expired'=> true,
-            'nome'   => $cidade['nome']
+            'nome'   => $cidade['nome'],
+            'result' => 'expired'
         ]);
     }
 
     return response()->json([
         'active'   => true,
-        'restante' => intval($restante), // força número inteiro
+        'restante' => intval($restante),
         'nome'     => $cidade['nome']
     ]);
 });
@@ -159,8 +177,28 @@ Route::post('/api/check', function(Request $request){
         return response()->json(['found'=>false, 'active'=>false]);
     }
 
+    // se já terminou ou já foi encontrado, devolve o estado persistente
+    $found = session('found', false);
+    $result = session('result', null);
+    if ($found || $result === 'found') {
+        return response()->json([
+            'found' => true,
+            'coords' => $cidade['coords'],
+            'nome' => $cidade['nome']
+        ]);
+    }
+    if ($result === 'expired') {
+        return response()->json([
+            'found' => false,
+            'expired' => true,
+            'nome' => $cidade['nome']
+        ]);
+    }
+
+    // verifica tempo restante
     $restante = now()->diffInSeconds($fim, false);
-    if($restante <= 0) {
+    if ($restante <= 0) {
+        session(['result' => 'expired', 'finished_at' => now()]);
         return response()->json([
             'found'=>false,
             'expired'=>true,
@@ -168,13 +206,21 @@ Route::post('/api/check', function(Request $request){
         ]);
     }
 
-    $lat = $request->input('lat');
-    $lng = $request->input('lng');
-    $zoom = $request->input('zoom');
+    $lat = (float) $request->input('lat');
+    $lng = (float) $request->input('lng');
+    $zoom = (int) $request->input('zoom');
 
-    $dist = sqrt(pow($lat - $cidade['coords'][0],2)+pow($lng - $cidade['coords'][1],2));
+    // valida distância (poder ajustar limiar) e zoom mínimo
+    $dist = sqrt(pow($lat - $cidade['coords'][0],2) + pow($lng - $cidade['coords'][1],2));
 
-    if($dist<1.0 && $zoom>=10){
+    if ($dist < 1.0 && $zoom >= 10) {
+        // marca como encontrado na sessão — fonte de verdade
+        session([
+            'found' => true,
+            'result' => 'found',
+            'finished_at' => now()
+        ]);
+
         return response()->json([
             'found'=>true,
             'coords'=>$cidade['coords'],
