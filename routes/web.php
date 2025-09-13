@@ -2,7 +2,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn() => view('welcome'));
+Route::get('/', fn() => view('mapa'));
 Route::get('/mapa', fn() => view('mapa'));
 
 Route::get('/api/start', function () {
