@@ -43,7 +43,7 @@ npm install
 ```
 cp .env.example .env
 php artisan key:generate
-Ajuste as configurações de banco de dados no .env.
+Ajuste as configurações de banco de dados no .env
 ```
 4. Rode as migrations:
 ```
@@ -53,7 +53,7 @@ php artisan migrate
 ```
 php artisan serve
 npm run dev
-O projeto estará disponível em http://127.0.0.1:8000.
+O projeto estará disponível em http://127.0.0.1:8000
 ```
 
 ## Como Jogar
