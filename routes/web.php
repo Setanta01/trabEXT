@@ -110,24 +110,27 @@ Route::get('/api/status', function () {
 Route::post('/api/check', function(Request $request){
     $cidade = session('rodada');
     $fim = session('fim');
-    if(!$cidade || !$fim) {
+
+    if (!$cidade || !$fim) {
         return response()->json(['found'=>false, 'active'=>false]);
     }
 
     $found = session('found', false);
     $result = session('result', null);
+
     if ($found || $result === 'found') {
         return response()->json([
             'found' => true,
             'coords' => $cidade['coords'],
-            'nome' => $cidade['nome']
+            'nome' => $cidade['nome'],
         ]);
     }
+
     if ($result === 'expired') {
         return response()->json([
             'found' => false,
             'expired' => true,
-            'nome' => $cidade['nome']
+            'nome' => $cidade['nome'],
         ]);
     }
 
@@ -141,9 +144,9 @@ Route::post('/api/check', function(Request $request){
         ]);
     }
 
-    // Se já existe um quiz pendente, devolve o mesmo
     $quiz = session('quiz');
     if ($quiz) {
+        // já existe quiz pendente, devolve ele
         return response()->json([
             'quiz' => true,
             'question' => $quiz['question'],
@@ -153,6 +156,7 @@ Route::post('/api/check', function(Request $request){
         ]);
     }
 
+    // verifica proximidade para criar quiz
     $lat = (float) $request->input('lat');
     $lng = (float) $request->input('lng');
     $zoom = (int) $request->input('zoom');
@@ -160,15 +164,15 @@ Route::post('/api/check', function(Request $request){
     $dist = sqrt(pow($lat - $cidade['coords'][0],2) + pow($lng - $cidade['coords'][1],2));
 
     if ($dist < 1.0 && $zoom >= 10) {
+        // cria quiz apenas se não existir
         $q = buildMathQuiz();
-        session([
-            'quiz' => [
-                'token' => $q['token'],
-                'question' => $q['question'],
-                'options' => $q['options'],
-                'correctIndex' => $q['correctIndex'],
-            ],
-        ]);
+        session(['quiz' => [
+            'token' => $q['token'],
+            'question' => $q['question'],
+            'options' => $q['options'],
+            'correctIndex' => $q['correctIndex'],
+        ]]);
+
         return response()->json([
             'quiz' => true,
             'question' => $q['question'],
@@ -190,7 +194,7 @@ Route::post('/api/answer', function(Request $request){
         return response()->json(['ok'=>false, 'error'=>'no_quiz'], 400);
     }
 
-    // Verificar se expirou
+    // verifica se expirou
     if (now()->diffInSeconds($fim, false) <= 0) {
         session(['result' => 'expired', 'finished_at' => now(), 'quiz' => null]);
         return response()->json([
@@ -200,33 +204,25 @@ Route::post('/api/answer', function(Request $request){
         ]);
     }
 
-    // Pega dados do request
     $token = (string) $request->input('token');
-    $choice = (int) $request->input('choice'); // converte para inteiro
+    $choice = (int) $request->input('choice'); // força inteiro
 
-    // Verifica token
+    // verifica token
     if (!hash_equals($quiz['token'], $token)) {
         return response()->json(['ok'=>false, 'error'=>'bad_token'], 400);
     }
 
-    $correctIndex = (int) $quiz['correctIndex']; // garante inteiro
+    $correctIndex = (int) $quiz['correctIndex'];
 
-    // DEBUG opcional
-    \Log::info('Answer Debug', [
-        'choice' => $choice,
-        'correctIndex' => $correctIndex,
-        'quiz_options' => $quiz['options'],
-        'quiz_question' => $quiz['question'],
-    ]);
-
-    // Comparação numérica segura
     if ($choice === $correctIndex) {
+        // resposta correta
         session([
             'found' => true,
             'result' => 'found',
             'finished_at' => now(),
             'quiz' => null,
         ]);
+
         return response()->json([
             'correct' => true,
             'coords' => $cidade['coords'],
@@ -234,6 +230,6 @@ Route::post('/api/answer', function(Request $request){
         ]);
     }
 
-    // Se chegou aqui, resposta incorreta
+    // resposta incorreta
     return response()->json(['correct'=>false]);
 });
