@@ -48,9 +48,9 @@ Route::get('/api/start', function () {
         'rodada' => $cidade,
         'fim' => $fim,
         'found' => false,
-        'result' => null, // 'found' | 'expired' | null
+        'result' => null,
         'finished_at' => null,
-        'quiz' => null,   // limpa quiz pendente
+        'quiz' => null,
     ]);
 
     return response()->json([
@@ -157,7 +157,7 @@ Route::post('/api/check', function(Request $request){
                 'token' => $q['token'],
                 'question' => $q['question'],
                 'options' => $q['options'],
-                'correctIndex' => $q['correctIndex'],
+                'correctIndex' => (int)$q['correctIndex'], // FORÇA COMO INTEIRO
             ],
         ]);
         return response()->json([
@@ -181,7 +181,7 @@ Route::post('/api/answer', function(Request $request){
         return response()->json(['ok'=>false, 'error'=>'no_quiz'], 400);
     }
 
-    // expirou?
+    // Verificar se expirou
     if (now()->diffInSeconds($fim, false) <= 0) {
         session(['result' => 'expired', 'finished_at' => now(), 'quiz' => null]);
         return response()->json([
@@ -192,13 +192,16 @@ Route::post('/api/answer', function(Request $request){
     }
 
     $token = (string)$request->input('token');
-    $choice = (int)$request->input('choice');
+    $choice = (int)$request->input('choice'); // FORÇA COMO INTEIRO
 
     if (!hash_equals($quiz['token'], $token)) {
         return response()->json(['ok'=>false, 'error'=>'bad_token'], 400);
     }
 
-    if ($choice === (int)$quiz['correctIndex']) {
+    // CORREÇÃO PRINCIPAL: Garantir que correctIndex seja inteiro
+    $correctIndex = (int)$quiz['correctIndex'];
+
+    if ($choice === $correctIndex) {
         session([
             'found' => true,
             'result' => 'found',
@@ -212,5 +215,5 @@ Route::post('/api/answer', function(Request $request){
         ]);
     }
 
-    return response()->json(['correct'=>false]); // permite tentar de novo até o tempo acabar
+    return response()->json(['correct'=>false]);
 });
