@@ -152,8 +152,11 @@ Route::post('/api/check', function(Request $request){
     $dist = sqrt(pow($lat - $cidade['coords'][0],2) + pow($lng - $cidade['coords'][1],2));
 
     if ($dist < 1.0 && $zoom >= 10) {
-        // bloqueio simples para evitar quizzes duplicados
-        if (!session()->has('quiz')) {
+        // bloqueio para evitar quizzes duplicados
+        if (!session()->has('quiz') && !session()->has('quiz_lock')) {
+            // marca que já está criando
+            session(['quiz_lock' => true]);
+
             $q = buildMathQuiz();
             session(['quiz' => [
                 'token' => $q['token'],
@@ -161,6 +164,9 @@ Route::post('/api/check', function(Request $request){
                 'options' => $q['options'],
                 'correctIndex' => $q['correctIndex'],
             ]]);
+
+            // remove lock após criar quiz
+            session()->forget('quiz_lock');
         } else {
             $q = session('quiz'); // usa o quiz existente
         }
