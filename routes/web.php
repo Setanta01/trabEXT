@@ -21,6 +21,15 @@ function buildMathQuiz(): array {
     $correctIndex = array_search($correct, $options, true);
     $token = bin2hex(random_bytes(16));
 
+    // DEBUG
+    \Log::info('Quiz Created', [
+        'question' => "Quanto é $a × $b?",
+        'correct_answer' => $correct,
+        'options' => $options,
+        'correct_index' => $correctIndex,
+        'correct_index_type' => gettype($correctIndex)
+    ]);
+
     return [
         'question' => "Quanto é $a × $b?",
         'options' => $options,
@@ -157,7 +166,7 @@ Route::post('/api/check', function(Request $request){
                 'token' => $q['token'],
                 'question' => $q['question'],
                 'options' => $q['options'],
-                'correctIndex' => (int)$q['correctIndex'], // FORÇA COMO INTEIRO
+                'correctIndex' => $q['correctIndex'],
             ],
         ]);
         return response()->json([
@@ -192,16 +201,31 @@ Route::post('/api/answer', function(Request $request){
     }
 
     $token = (string)$request->input('token');
-    $choice = (int)$request->input('choice'); // FORÇA COMO INTEIRO
+    $choice = $request->input('choice');
 
     if (!hash_equals($quiz['token'], $token)) {
         return response()->json(['ok'=>false, 'error'=>'bad_token'], 400);
     }
 
-    // CORREÇÃO PRINCIPAL: Garantir que correctIndex seja inteiro
-    $correctIndex = (int)$quiz['correctIndex'];
+    $correctIndex = $quiz['correctIndex'];
 
-    if ($choice === $correctIndex) {
+    // DEBUG COMPLETO
+    \Log::info('Answer Debug', [
+        'choice_raw' => $choice,
+        'choice_type' => gettype($choice),
+        'choice_int' => (int)$choice,
+        'correct_index_raw' => $correctIndex,
+        'correct_index_type' => gettype($correctIndex),
+        'correct_index_int' => (int)$correctIndex,
+        'quiz_options' => $quiz['options'],
+        'quiz_question' => $quiz['question'],
+        'comparison_strict' => $choice === $correctIndex,
+        'comparison_loose' => $choice == $correctIndex,
+        'comparison_int' => (int)$choice === (int)$correctIndex,
+    ]);
+
+    // Tentar três tipos de comparação
+    if ($choice == $correctIndex) { // comparação loose (==)
         session([
             'found' => true,
             'result' => 'found',
