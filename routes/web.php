@@ -200,32 +200,27 @@ Route::post('/api/answer', function(Request $request){
         ]);
     }
 
-    $token = (string)$request->input('token');
-    $choice = $request->input('choice');
+    // Pega dados do request
+    $token = (string) $request->input('token');
+    $choice = (int) $request->input('choice'); // converte para inteiro
 
+    // Verifica token
     if (!hash_equals($quiz['token'], $token)) {
         return response()->json(['ok'=>false, 'error'=>'bad_token'], 400);
     }
 
-    $correctIndex = $quiz['correctIndex'];
+    $correctIndex = (int) $quiz['correctIndex']; // garante inteiro
 
-    // DEBUG COMPLETO
+    // DEBUG opcional
     \Log::info('Answer Debug', [
-        'choice_raw' => $choice,
-        'choice_type' => gettype($choice),
-        'choice_int' => (int)$choice,
-        'correct_index_raw' => $correctIndex,
-        'correct_index_type' => gettype($correctIndex),
-        'correct_index_int' => (int)$correctIndex,
+        'choice' => $choice,
+        'correctIndex' => $correctIndex,
         'quiz_options' => $quiz['options'],
         'quiz_question' => $quiz['question'],
-        'comparison_strict' => $choice === $correctIndex,
-        'comparison_loose' => $choice == $correctIndex,
-        'comparison_int' => (int)$choice === (int)$correctIndex,
     ]);
 
-    // Tentar três tipos de comparação
-    if ($choice == $correctIndex) { // comparação loose (==)
+    // Comparação numérica segura
+    if ($choice === $correctIndex) {
         session([
             'found' => true,
             'result' => 'found',
@@ -239,5 +234,6 @@ Route::post('/api/answer', function(Request $request){
         ]);
     }
 
+    // Se chegou aqui, resposta incorreta
     return response()->json(['correct'=>false]);
 });
