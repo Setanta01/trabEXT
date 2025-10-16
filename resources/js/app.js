@@ -218,7 +218,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  map.on('moveend', checkProximity);
-  map.on('zoomend', checkProximity);
+let checkTimeout = null;
+map.on('moveend', () => {
+  clearTimeout(checkTimeout);
+  checkTimeout = setTimeout(checkProximity, 200);
+});
+map.on('zoomend', () => {
+  clearTimeout(checkTimeout);
+  checkTimeout = setTimeout(checkProximity, 200);
+});
   startBtn.addEventListener('click', startGame);
 });
