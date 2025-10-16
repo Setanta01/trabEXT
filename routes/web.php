@@ -2,6 +2,8 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Cache;
+
 
 function buildMathQuiz(): array {
     $a = random_int(2, 12);
@@ -144,7 +146,6 @@ Route::post('/api/check', function(Request $request){
         ]);
     }
 
-    // verifica proximidade para criar quiz
     $lat = (float) $request->input('lat');
     $lng = (float) $request->input('lng');
     $zoom = (int) $request->input('zoom');
@@ -152,22 +153,10 @@ Route::post('/api/check', function(Request $request){
     $dist = sqrt(pow($lat - $cidade['coords'][0],2) + pow($lng - $cidade['coords'][1],2));
 
     if ($dist < 1.0 && $zoom >= 10) {
-        // se já existe quiz, devolve ele
-        if (session()->has('quiz')) {
-            $q = session('quiz');
-        }
-        // se outro quiz está sendo criado, devolve placeholder
-        elseif (session()->has('quiz_lock')) {
-            $q = [
-                'question' => 'Quiz sendo gerado, aguarde...',
-                'options' => ['Aguarde', 'Aguarde', 'Aguarde', 'Aguarde'],
-                'token' => bin2hex(random_bytes(16)),
-            ];
-        }
-        // se nenhum quiz e nenhum lock, cria
-        else {
-            session(['quiz_lock' => true]); // marca lock
+        $cacheKey = 'quiz_lock_' . $cidade['id'];
 
+        // Tenta criar lock atômico no cache por 5 segundos
+        if (Cache::add($cacheKey, true, 5)) {
             $q = buildMathQuiz();
             session(['quiz' => [
                 'token' => $q['token'],
@@ -175,8 +164,14 @@ Route::post('/api/check', function(Request $request){
                 'options' => $q['options'],
                 'correctIndex' => $q['correctIndex'],
             ]]);
-
-            session()->forget('quiz_lock'); // remove lock
+            Cache::forget($cacheKey); // libera lock
+        } else {
+            // se outro processo está criando, devolve o quiz existente ou placeholder
+            $q = session('quiz') ?? [
+                'question' => 'Quiz sendo gerado, aguarde...',
+                'options' => ['Aguarde','Aguarde','Aguarde','Aguarde'],
+                'token' => bin2hex(random_bytes(16)),
+            ];
         }
 
         return response()->json([
