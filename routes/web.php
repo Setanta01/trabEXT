@@ -144,18 +144,6 @@ Route::post('/api/check', function(Request $request){
         ]);
     }
 
-    $quiz = session('quiz');
-    if ($quiz) {
-        // já existe quiz pendente, devolve ele
-        return response()->json([
-            'quiz' => true,
-            'question' => $quiz['question'],
-            'options' => $quiz['options'],
-            'token' => $quiz['token'],
-            'nome' => $cidade['nome'],
-        ]);
-    }
-
     // verifica proximidade para criar quiz
     $lat = (float) $request->input('lat');
     $lng = (float) $request->input('lng');
@@ -164,16 +152,19 @@ Route::post('/api/check', function(Request $request){
     $dist = sqrt(pow($lat - $cidade['coords'][0],2) + pow($lng - $cidade['coords'][1],2));
 
     if ($dist < 1.0 && $zoom >= 10) {
-        if (!$quiz) { // só cria se não houver
-        $q = buildMathQuiz();
-        session(['quiz' => [
-            'token' => $q['token'],
-            'question' => $q['question'],
-            'options' => $q['options'],
-            'correctIndex' => $q['correctIndex'],
-
-        ]]);
+        // bloqueio simples para evitar quizzes duplicados
+        if (!session()->has('quiz')) {
+            $q = buildMathQuiz();
+            session(['quiz' => [
+                'token' => $q['token'],
+                'question' => $q['question'],
+                'options' => $q['options'],
+                'correctIndex' => $q['correctIndex'],
+            ]]);
+        } else {
+            $q = session('quiz'); // usa o quiz existente
         }
+
         return response()->json([
             'quiz' => true,
             'question' => $q['question'],
