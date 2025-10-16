@@ -164,15 +164,16 @@ Route::post('/api/check', function(Request $request){
     $dist = sqrt(pow($lat - $cidade['coords'][0],2) + pow($lng - $cidade['coords'][1],2));
 
     if ($dist < 1.0 && $zoom >= 10) {
-        // cria quiz apenas se não existir
+        if (!$quiz) { // só cria se não houver
         $q = buildMathQuiz();
         session(['quiz' => [
             'token' => $q['token'],
             'question' => $q['question'],
             'options' => $q['options'],
             'correctIndex' => $q['correctIndex'],
-        ]]);
 
+        ]]);
+        }
         return response()->json([
             'quiz' => true,
             'question' => $q['question'],
