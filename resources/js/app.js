@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let endTime = null;
   let currentScore = 0;
   let currentRound = 0;
+  let gameStarted = false;
+  let roundInProgress = false;
+  let waitingNextRound = false; // NOVO: flag para controlar transição
 
   let quizOpen = false;
   let quizBackdrop = null;
@@ -60,7 +63,16 @@ document.addEventListener('DOMContentLoaded', () => {
     enableMapInteractions();
   }
 
-  async function startGame() {
+  async function startRound() {
+    // Previne múltiplas chamadas simultâneas
+    if (roundInProgress) {
+      console.log('Rodada já em progresso, aguardando...');
+      return;
+    }
+
+    roundInProgress = true;
+    waitingNextRound = false; // Reseta flag de espera
+    
     if (marker) {
       map.removeLayer(marker);
       marker = null;
@@ -72,54 +84,85 @@ document.addEventListener('DOMContentLoaded', () => {
     gameOver = false;
     map.setView([-15.7797, -47.9297], 4);
 
-    const res = await fetch('/api/start');
-    rodada = await res.json();
+    try {
+      const res = await fetch('/api/start');
+      rodada = await res.json();
 
-    endTime = rodada.fim * 1000;
-    currentScore = rodada.score;
-    currentRound = rodada.round;
+      endTime = rodada.fim * 1000;
+      currentScore = rodada.score;
+      currentRound = rodada.round;
 
-    updateScoreDisplay();
-    updateStatus();
-    clearInterval(statusTimer);
-    statusTimer = setInterval(updateStatus, 500);
-    
+      updateScoreDisplay();
+      
+      clearInterval(statusTimer);
+      statusTimer = setInterval(updateStatus, 500);
+      
+      roundInProgress = false;
+    } catch (error) {
+      console.error('Erro ao iniciar rodada:', error);
+      roundInProgress = false;
+    }
+  }
+
+  async function startGame() {
+    gameStarted = true;
     startBtn.style.display = 'none';
+    await startRound();
   }
 
   async function updateStatus() {
-    if (gameOver) return;
+    if (gameOver || waitingNextRound) return; // ALTERADO: adiciona verificação de waitingNextRound
+    if (!rodada) return;
 
     if (endTime) {
       const restante = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
       info.innerText = `🎯 Encontre: ${rodada.nome} (${restante}s)`;
-    }
-
-    const res = await fetch('/api/status');
-    const data = await res.json();
-
-    currentScore = data.score || 0;
-    currentRound = data.round || 0;
-    updateScoreDisplay();
-
-    if (data.found || data.result === 'found') {
-      if (quizOpen) closeQuiz();
-      // Próxima rodada automaticamente
-      setTimeout(() => {
-        startGame();
-      }, 1500);
-      return;
-    }
-
-    if (!data.active) {
-      clearInterval(statusTimer);
-      if (data.expired || data.result === 'expired') {
-        info.innerText = `⏰ Tempo esgotado! Era ${data.nome}`;
-        if (quizOpen) closeQuiz();
+      
+      // Verifica se o tempo acabou no cliente
+      if (restante <= 0 && !gameOver) {
+        clearInterval(statusTimer);
+        info.innerText = `⏰ Tempo esgotado! Era ${rodada.nome}`;
         gameOver = true;
-        showGameOver();
+        if (quizOpen) closeQuiz();
+        setTimeout(() => showGameOver(), 1000);
+        return;
       }
-      return;
+    }
+
+    try {
+      const res = await fetch('/api/status');
+      const data = await res.json();
+
+      currentScore = data.score || 0;
+      currentRound = data.round || 0;
+      updateScoreDisplay();
+
+      // CORREÇÃO: verifica found/result ANTES de verificar active
+      if (data.found || data.result === 'found') {
+        clearInterval(statusTimer);
+        waitingNextRound = true; // NOVO: marca que está esperando próxima rodada
+        if (quizOpen) closeQuiz();
+        info.innerText = '✅ Preparando próxima rodada...';
+        
+        // Aguarda 1.5s e inicia próxima rodada
+        setTimeout(async () => {
+          await startRound();
+        }, 1500);
+        return;
+      }
+
+      if (!data.active) {
+        clearInterval(statusTimer);
+        if (data.expired || data.result === 'expired') {
+          info.innerText = `⏰ Tempo esgotado! Era ${data.nome}`;
+          if (quizOpen) closeQuiz();
+          gameOver = true;
+          setTimeout(() => showGameOver(), 1000);
+        }
+        return;
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
     }
   }
 
@@ -136,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <div class="stat">
             <div class="stat-label">Rodadas Completadas</div>
-            <div class="stat-value">${currentRound - 1}</div>
+            <div class="stat-value">${Math.max(0, currentRound - 1)}</div>
           </div>
         </div>
         <div class="name-input-container">
@@ -159,76 +202,106 @@ document.addEventListener('DOMContentLoaded', () => {
 
     nameInput.focus();
 
+    async function saveScore(name) {
+      try {
+        await fetch('/api/game-over', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+          },
+          body: JSON.stringify({ name })
+        });
+      } catch (error) {
+        console.error('Erro ao salvar score:', error);
+      }
+    }
+
     btnSave.addEventListener('click', async () => {
       const name = nameInput.value.trim() || 'Anônimo';
-      
-      await fetch('/api/game-over', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-        },
-        body: JSON.stringify({ name })
-      });
-
+      await saveScore(name);
       backdrop.remove();
       showHighScores();
     });
 
     btnRestart.addEventListener('click', async () => {
       const name = nameInput.value.trim() || 'Anônimo';
-      
-      await fetch('/api/game-over', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-        },
-        body: JSON.stringify({ name })
-      });
-
+      await saveScore(name);
       backdrop.remove();
+      
+      // Reset completo do jogo
       enableMapInteractions();
       currentScore = 0;
       currentRound = 0;
+      gameStarted = false;
+      roundInProgress = false;
+      gameOver = false;
+      waitingNextRound = false;
+      rodada = null;
+      
       updateScoreDisplay();
       startBtn.style.display = 'block';
       info.innerText = '';
+      
+      if (marker) {
+        map.removeLayer(marker);
+        marker = null;
+      }
     });
   }
 
   async function showHighScores() {
-    const res = await fetch('/api/highscores');
-    const scores = await res.json();
+    try {
+      const res = await fetch('/api/highscores');
+      const scores = await res.json();
 
-    const backdrop = document.createElement('div');
-    backdrop.className = 'quiz-backdrop';
-    backdrop.innerHTML = `
-      <div class="highscores-modal">
-        <div class="highscores-header">🏆 HIGH SCORES</div>
-        <div class="highscores-list">
-          ${scores.map((s, i) => `
-            <div class="highscore-item">
-              <span class="rank">#${i + 1}</span>
-              <span class="name">${s.name}</span>
-              <span class="score">${s.score} pts</span>
-              <span class="rounds">${s.rounds} rodadas</span>
-            </div>
-          `).join('')}
-          ${scores.length === 0 ? '<div class="no-scores">Nenhum high score ainda!</div>' : ''}
+      const backdrop = document.createElement('div');
+      backdrop.className = 'quiz-backdrop';
+      backdrop.innerHTML = `
+        <div class="highscores-modal">
+          <div class="highscores-header">🏆 HIGH SCORES</div>
+          <div class="highscores-list">
+            ${scores.map((s, i) => `
+              <div class="highscore-item">
+                <span class="rank">#${i + 1}</span>
+                <span class="name">${s.name}</span>
+                <span class="score">${s.score} pts</span>
+                <span class="rounds">${s.rounds} rodadas</span>
+              </div>
+            `).join('')}
+            ${scores.length === 0 ? '<div class="no-scores">Nenhum high score ainda!</div>' : ''}
+          </div>
+          <button class="btn-close">Fechar</button>
         </div>
-        <button class="btn-close">Fechar</button>
-      </div>
-    `;
-    
-    document.body.appendChild(backdrop);
+      `;
+      
+      document.body.appendChild(backdrop);
 
-    backdrop.querySelector('.btn-close').addEventListener('click', () => {
-      backdrop.remove();
-      enableMapInteractions();
-      startBtn.style.display = 'block';
-      info.innerText = '';
-    });
+      backdrop.querySelector('.btn-close').addEventListener('click', () => {
+        backdrop.remove();
+        enableMapInteractions();
+        
+        // Reset completo
+        currentScore = 0;
+        currentRound = 0;
+        gameStarted = false;
+        roundInProgress = false;
+        gameOver = false;
+        waitingNextRound = false;
+        rodada = null;
+        
+        updateScoreDisplay();
+        startBtn.style.display = 'block';
+        info.innerText = '';
+        
+        if (marker) {
+          map.removeLayer(marker);
+          marker = null;
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao carregar high scores:', error);
+    }
   }
 
   function openQuizModal(payload) {
@@ -293,19 +366,38 @@ document.addEventListener('DOMContentLoaded', () => {
           updateScoreDisplay();
           
           clearInterval(statusTimer);
-
           closeQuiz();
+          
+          // CORREÇÃO: marca flag e aguarda antes de iniciar próxima rodada
+          waitingNextRound = true;
+          setTimeout(async () => {
+            await startRound();
+          }, 1500);
+          
         } else if (ans.expired) {
           info.innerText = `⏰ Tempo esgotado! Era ${ans.nome}`;
           clearInterval(statusTimer);
           gameOver = true;
           closeQuiz();
-          showGameOver();
+          setTimeout(() => showGameOver(), 1000);
+          
+        } else if (ans.wrong_answer || ans.game_over) {
+          // Resposta incorreta = GAME OVER
+          feedback.innerHTML = '<span style="color: #e74c3c; font-size: 18px;">❌ RESPOSTA ERRADA!</span>';
+          
+          setTimeout(() => {
+            clearInterval(statusTimer);
+            gameOver = true;
+            closeQuiz();
+            info.innerText = `💀 Game Over! A resposta estava errada!`;
+            setTimeout(() => showGameOver(), 1000);
+          }, 1500);
         } else {
-          feedback.textContent = '❌ Resposta incorreta! Tente novamente.';
+          feedback.textContent = '❌ Resposta incorreta!';
           setDisabled(false);
         }
       } catch (err) {
+        console.error('Erro ao verificar resposta:', err);
         feedback.textContent = 'Erro ao verificar resposta.';
         setDisabled(false);
       }
@@ -313,40 +405,35 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function checkProximity() {
-    if (!rodada || gameOver) return;
-    if (quizOpen) return;
+    if (!rodada || gameOver || quizOpen || waitingNextRound) return; // ALTERADO: adiciona waitingNextRound
 
     const center = map.getCenter();
     const zoom = map.getZoom();
 
-    const res = await fetch('/api/check', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-      },
-      body: JSON.stringify({ lat: center.lat, lng: center.lng, zoom: zoom })
-    });
-    const data = await res.json();
+    try {
+      const res = await fetch('/api/check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({ lat: center.lat, lng: center.lng, zoom: zoom })
+      });
+      const data = await res.json();
 
-    if (data.quiz) {
-      openQuizModal(data);
-      return;
-    }
+      if (data.quiz) {
+        openQuizModal(data);
+        return;
+      }
 
-    if (data.found) {
-      marker = L.circleMarker(data.coords, {
-        radius: 8, fillColor: 'red', color: '#fff', weight: 1, fillOpacity: 0.9
-      }).addTo(map).bindPopup('Você encontrou!');
-      marker.openPopup();
-      info.innerText = '🎉 Você achou!';
-      clearInterval(statusTimer);
-      gameOver = true;
-    } else if (data.expired) {
-      info.innerText = `⏰ Tempo esgotado! Era ${data.nome}`;
-      clearInterval(statusTimer);
-      gameOver = true;
-      showGameOver();
+      if (data.expired) {
+        info.innerText = `⏰ Tempo esgotado! Era ${data.nome}`;
+        clearInterval(statusTimer);
+        gameOver = true;
+        setTimeout(() => showGameOver(), 1000);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar proximidade:', error);
     }
   }
 
@@ -363,5 +450,10 @@ document.addEventListener('DOMContentLoaded', () => {
   startBtn.addEventListener('click', startGame);
   
   // Botão de high scores
-  document.getElementById('highscoresBtn').addEventListener('click', showHighScores);
+  document.getElementById('highscoresBtn').addEventListener('click', () => {
+    if (gameStarted && !gameOver) {
+      return;
+    }
+    showHighScores();
+  });
 });

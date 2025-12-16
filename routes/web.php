@@ -49,6 +49,7 @@ Route::get('/api/start', function () {
     $tempo = max(10, 20 - floor($currentRound / 3)); // reduz 1s a cada 3 rodadas
     $fim = now()->addSeconds($tempo);
 
+    // CORREÇÃO: Sempre reseta todos os flags para iniciar nova rodada limpa
     session([
         'rodada' => $cidade,
         'fim' => $fim,
@@ -56,6 +57,7 @@ Route::get('/api/start', function () {
         'result' => null,
         'quiz' => null,
         'current_round' => $currentRound,
+        'round_active' => true, // IMPORTANTE: sempre true ao iniciar rodada
     ]);
 
     return response()->json([
@@ -73,8 +75,9 @@ Route::get('/api/status', function () {
     $fim = session('fim');
     $found = session('found', false);
     $result = session('result', null);
+    $roundActive = session('round_active', false);
 
-    if (!$cidade || !$fim) {
+    if (!$cidade || !$fim || !$roundActive) {
         return response()->json([
             'active'=>false,
             'score' => session('score', 0),
@@ -95,7 +98,7 @@ Route::get('/api/status', function () {
 
     $restante = now()->diffInRealSeconds($fim, false);
     if ($restante <= 0) {
-        session(['result' => 'expired', 'quiz' => null]);
+        session(['result' => 'expired', 'quiz' => null, 'round_active' => false]);
         return response()->json([
             'active' => false,
             'expired'=> true,
@@ -118,8 +121,9 @@ Route::get('/api/status', function () {
 Route::post('/api/check', function(Request $request){
     $cidade = session('rodada');
     $fim = session('fim');
+    $roundActive = session('round_active', false);
 
-    if (!$cidade || !$fim) {
+    if (!$cidade || !$fim || !$roundActive) {
         return response()->json(['found'=>false, 'active'=>false]);
     }
 
@@ -134,7 +138,7 @@ Route::post('/api/check', function(Request $request){
         ]);
     }
 
-    if ($result === 'expired') {
+    if ($result === 'expired' || $result === 'wrong_answer') {
         return response()->json([
             'found' => false,
             'expired' => true,
@@ -144,7 +148,7 @@ Route::post('/api/check', function(Request $request){
 
     $restante = now()->diffInSeconds($fim, false);
     if ($restante <= 0) {
-        session(['result' => 'expired', 'quiz' => null]);
+        session(['result' => 'expired', 'quiz' => null, 'round_active' => false]);
         return response()->json([
             'found'=>false,
             'expired'=>true,
@@ -194,13 +198,14 @@ Route::post('/api/answer', function(Request $request){
     $cidade = session('rodada');
     $fim = session('fim');
     $quiz = session('quiz');
+    $roundActive = session('round_active', false);
 
-    if (!$cidade || !$fim || !$quiz) {
+    if (!$cidade || !$fim || !$quiz || !$roundActive) {
         return response()->json(['ok'=>false, 'error'=>'no_quiz'], 400);
     }
 
     if (now()->diffInSeconds($fim, false) <= 0) {
-        session(['result' => 'expired', 'quiz' => null]);
+        session(['result' => 'expired', 'quiz' => null, 'round_active' => false]);
         return response()->json([
             'correct'=>false,
             'expired'=>true,
@@ -230,6 +235,7 @@ Route::post('/api/answer', function(Request $request){
             'result' => 'found',
             'quiz' => null,
             'score' => $currentScore,
+            'round_active' => false, // desativa a rodada atual
         ]);
 
         return response()->json([
@@ -241,7 +247,18 @@ Route::post('/api/answer', function(Request $request){
         ]);
     }
 
-    return response()->json(['correct'=>false]);
+    // Resposta incorreta = game over
+    session([
+        'result' => 'wrong_answer',
+        'quiz' => null,
+        'round_active' => false,
+    ]);
+
+    return response()->json([
+        'correct'=>false,
+        'wrong_answer' => true,
+        'game_over' => true,
+    ]);
 });
 
 Route::post('/api/game-over', function(Request $request) {
@@ -253,13 +270,13 @@ Route::post('/api/game-over', function(Request $request) {
         Score::create([
             'player_name' => substr($playerName, 0, 50),
             'score' => $score,
-            'rounds_completed' => $rounds,
+            'rounds_completed' => max(0, $rounds - 1), // -1 porque falhou na última
             'played_at' => now(),
         ]);
     }
     
-    // Limpa a sessão do jogo
-    session()->forget(['rodada', 'fim', 'found', 'result', 'quiz', 'current_round', 'score']);
+    // Limpa a sessão do jogo completamente
+    session()->forget(['rodada', 'fim', 'found', 'result', 'quiz', 'current_round', 'score', 'round_active']);
     
     return response()->json(['ok' => true]);
 });
