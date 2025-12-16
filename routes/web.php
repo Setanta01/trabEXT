@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Cache;
-
+use App\Models\Score;
 
 function buildMathQuiz(): array {
     $a = random_int(2, 12);
@@ -23,15 +23,6 @@ function buildMathQuiz(): array {
     $correctIndex = array_search($correct, $options, true);
     $token = bin2hex(random_bytes(16));
 
-    // DEBUG
-    \Log::info('Quiz Created', [
-        'question' => "Quanto é $a × $b?",
-        'correct_answer' => $correct,
-        'options' => $options,
-        'correct_index' => $correctIndex,
-        'correct_index_type' => gettype($correctIndex)
-    ]);
-
     return [
         'question' => "Quanto é $a × $b?",
         'options' => $options,
@@ -50,9 +41,12 @@ Route::get('/api/start', function () {
         ['id'=>3, 'nome'=>'Brasília', 'coords'=>[-15.7797,-47.9297]],
         ['id'=>4, 'nome'=>'Fortaleza', 'coords'=>[-3.7319,-38.5267]],
     ];
+    
     $cidade = $cidades[array_rand($cidades)];
-
-    $tempo = 20; // segundos
+    
+    // Tempo base de 20s, reduz conforme avança nas rodadas
+    $currentRound = session('current_round', 0) + 1;
+    $tempo = max(10, 20 - floor($currentRound / 3)); // reduz 1s a cada 3 rodadas
     $fim = now()->addSeconds($tempo);
 
     session([
@@ -60,15 +54,17 @@ Route::get('/api/start', function () {
         'fim' => $fim,
         'found' => false,
         'result' => null,
-        'finished_at' => null,
         'quiz' => null,
+        'current_round' => $currentRound,
     ]);
 
     return response()->json([
         'id' => $cidade['id'],
         'nome' => $cidade['nome'],
         'tempo'=> $tempo,
-        'fim' => $fim->timestamp
+        'fim' => $fim->timestamp,
+        'round' => $currentRound,
+        'score' => session('score', 0),
     ]);
 });
 
@@ -79,7 +75,11 @@ Route::get('/api/status', function () {
     $result = session('result', null);
 
     if (!$cidade || !$fim) {
-        return response()->json(['active'=>false]);
+        return response()->json([
+            'active'=>false,
+            'score' => session('score', 0),
+            'round' => session('current_round', 0),
+        ]);
     }
 
     if ($found || $result === 'found') {
@@ -87,25 +87,31 @@ Route::get('/api/status', function () {
             'active' => false,
             'found' => true,
             'nome' => $cidade['nome'],
-            'result' => 'found'
+            'result' => 'found',
+            'score' => session('score', 0),
+            'round' => session('current_round', 0),
         ]);
     }
 
     $restante = now()->diffInRealSeconds($fim, false);
     if ($restante <= 0) {
-        session(['result' => 'expired', 'finished_at' => now(), 'quiz' => null]);
+        session(['result' => 'expired', 'quiz' => null]);
         return response()->json([
             'active' => false,
             'expired'=> true,
             'nome' => $cidade['nome'],
-            'result' => 'expired'
+            'result' => 'expired',
+            'score' => session('score', 0),
+            'round' => session('current_round', 0),
         ]);
     }
 
     return response()->json([
         'active' => true,
         'restante' => intval($restante),
-        'nome' => $cidade['nome']
+        'nome' => $cidade['nome'],
+        'score' => session('score', 0),
+        'round' => session('current_round', 0),
     ]);
 });
 
@@ -138,7 +144,7 @@ Route::post('/api/check', function(Request $request){
 
     $restante = now()->diffInSeconds($fim, false);
     if ($restante <= 0) {
-        session(['result' => 'expired', 'finished_at' => now(), 'quiz' => null]);
+        session(['result' => 'expired', 'quiz' => null]);
         return response()->json([
             'found'=>false,
             'expired'=>true,
@@ -155,7 +161,6 @@ Route::post('/api/check', function(Request $request){
     if ($dist < 1.0 && $zoom >= 10) {
         $cacheKey = 'quiz_lock_' . $cidade['id'];
 
-        // Tenta criar lock atômico no cache por 5 segundos
         if (Cache::add($cacheKey, true, 5)) {
             $q = buildMathQuiz();
             session(['quiz' => [
@@ -164,9 +169,8 @@ Route::post('/api/check', function(Request $request){
                 'options' => $q['options'],
                 'correctIndex' => $q['correctIndex'],
             ]]);
-            Cache::forget($cacheKey); // libera lock
+            Cache::forget($cacheKey);
         } else {
-            // se outro processo está criando, devolve o quiz existente ou placeholder
             $q = session('quiz') ?? [
                 'question' => 'Quiz sendo gerado, aguarde...',
                 'options' => ['Aguarde','Aguarde','Aguarde','Aguarde'],
@@ -186,7 +190,6 @@ Route::post('/api/check', function(Request $request){
     return response()->json(['found'=>false, 'restante'=>$restante]);
 });
 
-
 Route::post('/api/answer', function(Request $request){
     $cidade = session('rodada');
     $fim = session('fim');
@@ -196,9 +199,8 @@ Route::post('/api/answer', function(Request $request){
         return response()->json(['ok'=>false, 'error'=>'no_quiz'], 400);
     }
 
-    // verifica se expirou
     if (now()->diffInSeconds($fim, false) <= 0) {
-        session(['result' => 'expired', 'finished_at' => now(), 'quiz' => null]);
+        session(['result' => 'expired', 'quiz' => null]);
         return response()->json([
             'correct'=>false,
             'expired'=>true,
@@ -207,9 +209,8 @@ Route::post('/api/answer', function(Request $request){
     }
 
     $token = (string) $request->input('token');
-    $choice = (int) $request->input('choice'); // força inteiro
+    $choice = (int) $request->input('choice');
 
-    // verifica token
     if (!hash_equals($quiz['token'], $token)) {
         return response()->json(['ok'=>false, 'error'=>'bad_token'], 400);
     }
@@ -217,21 +218,64 @@ Route::post('/api/answer', function(Request $request){
     $correctIndex = (int) $quiz['correctIndex'];
 
     if ($choice === $correctIndex) {
-        // resposta correta
+        // Calcula pontos: 100 base + bonus de tempo
+        $timeLeft = now()->diffInSeconds($fim, false);
+        $timeBonus = max(0, $timeLeft * 5);
+        $points = 100 + $timeBonus;
+        
+        $currentScore = session('score', 0) + $points;
+        
         session([
             'found' => true,
             'result' => 'found',
-            'finished_at' => now(),
             'quiz' => null,
+            'score' => $currentScore,
         ]);
 
         return response()->json([
             'correct' => true,
             'coords' => $cidade['coords'],
             'nome' => $cidade['nome'],
+            'points' => $points,
+            'totalScore' => $currentScore,
         ]);
     }
 
-    // resposta incorreta
     return response()->json(['correct'=>false]);
+});
+
+Route::post('/api/game-over', function(Request $request) {
+    $score = session('score', 0);
+    $rounds = session('current_round', 0);
+    $playerName = $request->input('name', 'Anônimo');
+    
+    if ($score > 0) {
+        Score::create([
+            'player_name' => substr($playerName, 0, 50),
+            'score' => $score,
+            'rounds_completed' => $rounds,
+            'played_at' => now(),
+        ]);
+    }
+    
+    // Limpa a sessão do jogo
+    session()->forget(['rodada', 'fim', 'found', 'result', 'quiz', 'current_round', 'score']);
+    
+    return response()->json(['ok' => true]);
+});
+
+Route::get('/api/highscores', function() {
+    $scores = Score::orderBy('score', 'desc')
+        ->limit(10)
+        ->get()
+        ->map(function($score) {
+            return [
+                'name' => $score->player_name,
+                'score' => $score->score,
+                'rounds' => $score->rounds_completed,
+                'date' => $score->played_at->format('d/m/Y'),
+            ];
+        });
+    
+    return response()->json($scores);
 });
