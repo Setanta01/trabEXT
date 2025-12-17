@@ -31,10 +31,103 @@ function buildMathQuiz(): array {
     ];
 }
 
+function buildEngineeringQuiz(): array {
+    $questions = [
+        [
+            'question' => 'Qual padrão de projeto garante que uma classe tenha apenas uma instância?',
+            'correct' => 'Singleton',
+            'wrong' => ['Factory', 'Observer', 'Strategy']
+        ],
+        [
+            'question' => 'O que significa SOLID em programação orientada a objetos?',
+            'correct' => 'Princípios de design de software',
+            'wrong' => ['Framework JavaScript', 'Banco de dados NoSQL', 'Linguagem de programação']
+        ],
+        [
+            'question' => 'Qual estrutura de dados usa LIFO (Last In, First Out)?',
+            'correct' => 'Stack (Pilha)',
+            'wrong' => ['Queue (Fila)', 'Array', 'Hash Table']
+        ],
+        [
+            'question' => 'O que é Big O notation?',
+            'correct' => 'Medida de complexidade de algoritmos',
+            'wrong' => ['Linguagem de programação', 'Sistema operacional', 'Banco de dados']
+        ],
+        [
+            'question' => 'Qual o princípio do SOLID representado por "S"?',
+            'correct' => 'Single Responsibility',
+            'wrong' => ['Separation of Concerns', 'Simple Design', 'State Management']
+        ],
+        [
+            'question' => 'O que é Git?',
+            'correct' => 'Sistema de controle de versão',
+            'wrong' => ['Linguagem de programação', 'Framework web', 'Banco de dados']
+        ],
+        [
+            'question' => 'Qual a complexidade de busca em uma árvore binária balanceada?',
+            'correct' => 'O(log n)',
+            'wrong' => ['O(n)', 'O(1)', 'O(n²)']
+        ],
+        [
+            'question' => 'O que é REST API?',
+            'correct' => 'Arquitetura de comunicação web',
+            'wrong' => ['Linguagem de programação', 'Banco de dados', 'Sistema operacional']
+        ],
+        [
+            'question' => 'Qual padrão separa a lógica de negócio da interface?',
+            'correct' => 'MVC (Model-View-Controller)',
+            'wrong' => ['Singleton', 'Factory', 'Decorator']
+        ],
+        [
+            'question' => 'O que é refatoração de código?',
+            'correct' => 'Melhorar código sem mudar comportamento',
+            'wrong' => ['Corrigir bugs', 'Adicionar novas features', 'Deletar código']
+        ],
+        [
+            'question' => 'Qual método HTTP é usado para criar recursos?',
+            'correct' => 'POST',
+            'wrong' => ['GET', 'DELETE', 'PUT']
+        ],
+        [
+            'question' => 'O que é SQL Injection?',
+            'correct' => 'Vulnerabilidade de segurança',
+            'wrong' => ['Comando SQL', 'Tipo de banco de dados', 'Framework']
+        ],
+        [
+            'question' => 'Qual a diferença entre Array e Linked List?',
+            'correct' => 'Arrays têm índice direto, listas são sequenciais',
+            'wrong' => ['Não há diferença', 'Arrays são mais lentos', 'Linked Lists usam menos memória']
+        ],
+        [
+            'question' => 'O que é Deploy?',
+            'correct' => 'Publicar aplicação em produção',
+            'wrong' => ['Testar código', 'Escrever documentação', 'Revisar código']
+        ],
+        [
+            'question' => 'Qual padrão permite adicionar funcionalidades dinamicamente?',
+            'correct' => 'Decorator',
+            'wrong' => ['Singleton', 'Factory', 'Observer']
+        ]
+    ];
+
+    $selected = $questions[array_rand($questions)];
+    $options = array_merge([$selected['correct']], $selected['wrong']);
+    shuffle($options);
+    $correctIndex = array_search($selected['correct'], $options, true);
+    $token = bin2hex(random_bytes(16));
+
+    return [
+        'question' => $selected['question'],
+        'options' => $options,
+        'correctIndex' => $correctIndex,
+        'token' => $token,
+    ];
+}
+
 Route::get('/', fn() => view('mapa'));
 Route::get('/mapa', fn() => view('mapa'));
 
-Route::get('/api/start', function () {
+Route::get('/api/start', function (Request $request) {
     $cidades = [
         ['id'=>1, 'nome'=>'São Paulo', 'coords'=>[-23.5505,-46.6333]],
         ['id'=>2, 'nome'=>'Rio de Janeiro', 'coords'=>[-22.9068,-43.1729]],
@@ -44,12 +137,13 @@ Route::get('/api/start', function () {
     
     $cidade = $cidades[array_rand($cidades)];
     
-    // Tempo base de 20s, reduz conforme avança nas rodadas
     $currentRound = session('current_round', 0) + 1;
-    $tempo = max(10, 20 - floor($currentRound / 3)); // reduz 1s a cada 3 rodadas
+    $tempo = max(10, 20 - floor($currentRound / 3));
     $fim = now()->addSeconds($tempo);
 
-    // CORREÇÃO: Sempre reseta todos os flags para iniciar nova rodada limpa
+    // Armazena o modo de jogo escolhido
+    $mode = $request->input('mode', 'matematica');
+    
     session([
         'rodada' => $cidade,
         'fim' => $fim,
@@ -57,7 +151,8 @@ Route::get('/api/start', function () {
         'result' => null,
         'quiz' => null,
         'current_round' => $currentRound,
-        'round_active' => true, // IMPORTANTE: sempre true ao iniciar rodada
+        'round_active' => true,
+        'game_mode' => $mode, // Salva o modo na sessão
     ]);
 
     return response()->json([
@@ -166,7 +261,15 @@ Route::post('/api/check', function(Request $request){
         $cacheKey = 'quiz_lock_' . $cidade['id'];
 
         if (Cache::add($cacheKey, true, 5)) {
-            $q = buildMathQuiz();
+            // Verifica o modo de jogo e gera o quiz apropriado
+            $gameMode = session('game_mode', 'matematica');
+            
+            if ($gameMode === 'engenharia') {
+                $q = buildEngineeringQuiz();
+            } else {
+                $q = buildMathQuiz();
+            }
+            
             session(['quiz' => [
                 'token' => $q['token'],
                 'question' => $q['question'],
@@ -223,7 +326,6 @@ Route::post('/api/answer', function(Request $request){
     $correctIndex = (int) $quiz['correctIndex'];
 
     if ($choice === $correctIndex) {
-        // Calcula pontos: 100 base + bonus de tempo
         $timeLeft = now()->diffInSeconds($fim, false);
         $timeBonus = max(0, $timeLeft * 5);
         $points = 100 + $timeBonus;
@@ -235,7 +337,7 @@ Route::post('/api/answer', function(Request $request){
             'result' => 'found',
             'quiz' => null,
             'score' => $currentScore,
-            'round_active' => false, // desativa a rodada atual
+            'round_active' => false,
         ]);
 
         return response()->json([
@@ -247,7 +349,6 @@ Route::post('/api/answer', function(Request $request){
         ]);
     }
 
-    // Resposta incorreta = game over
     session([
         'result' => 'wrong_answer',
         'quiz' => null,
@@ -270,13 +371,12 @@ Route::post('/api/game-over', function(Request $request) {
         Score::create([
             'player_name' => substr($playerName, 0, 50),
             'score' => $score,
-            'rounds_completed' => max(0, $rounds - 1), // -1 porque falhou na última
+            'rounds_completed' => max(0, $rounds - 1),
             'played_at' => now(),
         ]);
     }
     
-    // Limpa a sessão do jogo completamente
-    session()->forget(['rodada', 'fim', 'found', 'result', 'quiz', 'current_round', 'score', 'round_active']);
+    session()->forget(['rodada', 'fim', 'found', 'result', 'quiz', 'current_round', 'score', 'round_active', 'game_mode']);
     
     return response()->json(['ok' => true]);
 });

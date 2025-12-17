@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }).addTo(map);
 
   const startBtn = document.getElementById('startBtn');
+  const gameModeBtn = document.getElementById('gameModeBtn');
   const info = document.getElementById('info');
   const scoreDisplay = document.getElementById('scoreDisplay');
 
@@ -23,7 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentRound = 0;
   let gameStarted = false;
   let roundInProgress = false;
-  let waitingNextRound = false; // NOVO: flag para controlar transição
+  let waitingNextRound = false;
+  let gameMode = 'matematica'; // Modo padrão
 
   let quizOpen = false;
   let quizBackdrop = null;
@@ -54,6 +56,49 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function showGameModeSelector() {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'quiz-backdrop';
+    backdrop.innerHTML = `
+      <div class="game-mode-modal">
+        <div class="game-mode-header">🎮 Escolha o Modo de Jogo</div>
+        <div class="game-mode-description">
+          Selecione o tipo de perguntas que você quer responder durante o jogo
+        </div>
+        <div class="game-mode-options">
+          <button class="mode-option" data-mode="matematica">
+            <div class="mode-icon">🔢</div>
+            <div class="mode-title">Clássico</div>
+            <div class="mode-desc">Perguntas de matemática básica</div>
+          </button>
+          <button class="mode-option" data-mode="engenharia">
+            <div class="mode-icon">💻</div>
+            <div class="mode-title">Engenharia de Software</div>
+            <div class="mode-desc">Perguntas sobre programação e desenvolvimento</div>
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(backdrop);
+    disableMapInteractions();
+
+    const modeButtons = backdrop.querySelectorAll('.mode-option');
+    modeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        gameMode = btn.dataset.mode;
+        backdrop.remove();
+        enableMapInteractions();
+        
+        // Exibe mensagem de confirmação
+        info.innerText = `Modo selecionado: ${gameMode === 'matematica' ? '🔢 Clássico' : '💻 Engenharia de Software'}`;
+        setTimeout(() => {
+          info.innerText = '';
+        }, 2000);
+      });
+    });
+  }
+
   function closeQuiz() {
     if (quizBackdrop) {
       quizBackdrop.remove();
@@ -64,14 +109,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function startRound() {
-    // Previne múltiplas chamadas simultâneas
     if (roundInProgress) {
       console.log('Rodada já em progresso, aguardando...');
       return;
     }
 
     roundInProgress = true;
-    waitingNextRound = false; // Reseta flag de espera
+    waitingNextRound = false;
     
     if (marker) {
       map.removeLayer(marker);
@@ -85,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     map.setView([-15.7797, -47.9297], 4);
 
     try {
-      const res = await fetch('/api/start');
+      const res = await fetch(`/api/start?mode=${gameMode}`);
       rodada = await res.json();
 
       endTime = rodada.fim * 1000;
@@ -107,18 +151,18 @@ document.addEventListener('DOMContentLoaded', () => {
   async function startGame() {
     gameStarted = true;
     startBtn.style.display = 'none';
+    gameModeBtn.style.display = 'none'; // Esconde o botão de modo
     await startRound();
   }
 
   async function updateStatus() {
-    if (gameOver || waitingNextRound) return; // ALTERADO: adiciona verificação de waitingNextRound
+    if (gameOver || waitingNextRound) return;
     if (!rodada) return;
 
     if (endTime) {
       const restante = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
       info.innerText = `🎯 Encontre: ${rodada.nome} (${restante}s)`;
       
-      // Verifica se o tempo acabou no cliente
       if (restante <= 0 && !gameOver) {
         clearInterval(statusTimer);
         info.innerText = `⏰ Tempo esgotado! Era ${rodada.nome}`;
@@ -137,14 +181,12 @@ document.addEventListener('DOMContentLoaded', () => {
       currentRound = data.round || 0;
       updateScoreDisplay();
 
-      // CORREÇÃO: verifica found/result ANTES de verificar active
       if (data.found || data.result === 'found') {
         clearInterval(statusTimer);
-        waitingNextRound = true; // NOVO: marca que está esperando próxima rodada
+        waitingNextRound = true;
         if (quizOpen) closeQuiz();
         info.innerText = '✅ Preparando próxima rodada...';
         
-        // Aguarda 1.5s e inicia próxima rodada
         setTimeout(async () => {
           await startRound();
         }, 1500);
@@ -229,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
       await saveScore(name);
       backdrop.remove();
       
-      // Reset completo do jogo
       enableMapInteractions();
       currentScore = 0;
       currentRound = 0;
@@ -241,6 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       updateScoreDisplay();
       startBtn.style.display = 'block';
+      gameModeBtn.style.display = 'block'; // Mostra o botão de modo novamente
       info.innerText = '';
       
       if (marker) {
@@ -281,7 +323,6 @@ document.addEventListener('DOMContentLoaded', () => {
         backdrop.remove();
         enableMapInteractions();
         
-        // Reset completo
         currentScore = 0;
         currentRound = 0;
         gameStarted = false;
@@ -292,6 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         updateScoreDisplay();
         startBtn.style.display = 'block';
+        gameModeBtn.style.display = 'block'; // Mostra o botão de modo novamente
         info.innerText = '';
         
         if (marker) {
@@ -368,7 +410,6 @@ document.addEventListener('DOMContentLoaded', () => {
           clearInterval(statusTimer);
           closeQuiz();
           
-          // CORREÇÃO: marca flag e aguarda antes de iniciar próxima rodada
           waitingNextRound = true;
           setTimeout(async () => {
             await startRound();
@@ -382,7 +423,6 @@ document.addEventListener('DOMContentLoaded', () => {
           setTimeout(() => showGameOver(), 1000);
           
         } else if (ans.wrong_answer || ans.game_over) {
-          // Resposta incorreta = GAME OVER
           feedback.innerHTML = '<span style="color: #e74c3c; font-size: 18px;">❌ RESPOSTA ERRADA!</span>';
           
           setTimeout(() => {
@@ -405,7 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function checkProximity() {
-    if (!rodada || gameOver || quizOpen || waitingNextRound) return; // ALTERADO: adiciona waitingNextRound
+    if (!rodada || gameOver || quizOpen || waitingNextRound) return;
 
     const center = map.getCenter();
     const zoom = map.getZoom();
@@ -448,8 +488,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   startBtn.addEventListener('click', startGame);
+  gameModeBtn.addEventListener('click', showGameModeSelector);
   
-  // Botão de high scores
   document.getElementById('highscoresBtn').addEventListener('click', () => {
     if (gameStarted && !gameOver) {
       return;

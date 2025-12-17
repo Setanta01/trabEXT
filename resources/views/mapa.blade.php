@@ -19,7 +19,7 @@
             width: 100%;
         }
 
-        #startBtn, #highscoresBtn {
+        #startBtn, #highscoresBtn, #gameModeBtn {
             position: absolute;
             top: 10px;
             z-index: 1000;
@@ -40,15 +40,27 @@
             transform: translateX(-50%);
         }
 
+        #gameModeBtn {
+            left: 50%;
+            transform: translateX(-50%);
+            top: 60px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
         #highscoresBtn {
             right: 10px;
             padding: 10px 20px;
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         }
 
-        #startBtn:hover, #highscoresBtn:hover {
+        #startBtn:hover {
             transform: translateX(-50%) scale(1.05);
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        #gameModeBtn:hover {
+            transform: translateX(-50%) scale(1.05);
+            box-shadow: 0 6px 20px rgba(245, 87, 108, 0.6);
         }
 
         #highscoresBtn:hover {
@@ -58,7 +70,7 @@
 
         #info {
             position: absolute;
-            top: 70px;
+            top: 120px;
             left: 50%;
             transform: translateX(-50%);
             background: rgba(255, 255, 255, 0.95);
@@ -383,8 +395,112 @@
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
 
+        /* Game Mode Modal */
+        .game-mode-modal {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            animation: slideUp 0.4s ease;
+        }
+
+        .game-mode-header {
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .game-mode-description {
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        .game-mode-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .mode-option {
+            background: white;
+            border: 3px solid transparent;
+            border-radius: 15px;
+            padding: 30px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mode-option::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .mode-option:hover::before {
+            left: 100%;
+        }
+
+        .mode-option:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border-color: #667eea;
+        }
+
+        .mode-option:active {
+            transform: translateY(-2px);
+        }
+
+        .mode-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            animation: bounce 2s infinite;
+        }
+
+        .mode-option:hover .mode-icon {
+            animation: spin 0.6s ease;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.2); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .mode-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .mode-desc {
+            font-size: 14px;
+            color: #7f8c8d;
+            line-height: 1.4;
+        }
+
         @media (max-width: 768px) {
-            #startBtn, #highscoresBtn {
+            #startBtn, #highscoresBtn, #gameModeBtn {
                 font-size: 14px;
                 padding: 10px 18px;
             }
@@ -398,7 +514,7 @@
                 font-size: 22px;
             }
 
-            .quiz-modal, .game-over-modal, .highscores-modal {
+            .quiz-modal, .game-over-modal, .highscores-modal, .game-mode-modal {
                 padding: 25px;
             }
 
@@ -414,11 +530,20 @@
             .score, .rounds {
                 grid-column: 2;
             }
+
+            .game-mode-options {
+                grid-template-columns: 1fr;
+            }
+
+            .game-mode-header {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
 <body>
     <button id="startBtn">🚀 Iniciar Jogo</button>
+    <button id="gameModeBtn">⚙️ Modo de Jogo</button>
     <button id="highscoresBtn">🏆 High Scores</button>
     <div id="scoreDisplay">
         <div class="score-label">Pontos</div>
