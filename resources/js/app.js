@@ -25,7 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let gameStarted = false;
   let roundInProgress = false;
   let waitingNextRound = false;
-  let gameMode = 'matematica'; // Modo padrão
+  let gameMode = 'matematica';
+  let customModeId = null;
 
   let quizOpen = false;
   let quizBackdrop = null;
@@ -56,6 +57,73 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  async function showCustomModesList() {
+    try {
+      const res = await fetch('/api/custom-modes');
+      const modes = await res.json();
+
+      const backdrop = document.createElement('div');
+      backdrop.className = 'quiz-backdrop';
+      backdrop.innerHTML = `
+        <div class="custom-modes-list-modal">
+          <div class="custom-modes-header">🎮 Modos Personalizados</div>
+          <div class="custom-modes-description">
+            Escolha um modo criado pela comunidade
+          </div>
+          <div class="custom-modes-container">
+            ${modes.length > 0 ? modes.map(mode => `
+              <div class="custom-mode-card" data-mode-id="${mode.id}">
+                <div class="custom-mode-title">${mode.title}</div>
+                <div class="custom-mode-meta">
+                  <span>👤 ${mode.creator_name}</span>
+                  <span>❓ ${mode.questions_count} perguntas</span>
+                </div>
+                ${mode.description ? `<div class="custom-mode-description-text">${mode.description}</div>` : ''}
+                <div class="custom-mode-date">Criado em ${mode.created_at}</div>
+              </div>
+            `).join('') : '<div class="no-custom-modes">Nenhum modo personalizado ainda. Crie o primeiro!</div>'}
+          </div>
+          <div class="custom-modes-actions">
+            <button class="btn-create-mode">✨ Criar Novo Modo</button>
+            <button class="btn-back-modes">← Voltar</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(backdrop);
+      disableMapInteractions();
+
+      // Selecionar modo
+      backdrop.querySelectorAll('.custom-mode-card').forEach(card => {
+        card.addEventListener('click', () => {
+          customModeId = card.dataset.modeId;
+          gameMode = 'custom';
+          backdrop.remove();
+          enableMapInteractions();
+          
+          const modeTitle = card.querySelector('.custom-mode-title').textContent;
+          info.innerText = `Modo selecionado: 🎨 ${modeTitle}`;
+          setTimeout(() => {
+            info.innerText = '';
+          }, 2000);
+        });
+      });
+
+      // Criar novo modo
+      backdrop.querySelector('.btn-create-mode')?.addEventListener('click', () => {
+        window.location.href = '/criador-de-fase';
+      });
+
+      // Voltar
+      backdrop.querySelector('.btn-back-modes').addEventListener('click', () => {
+        backdrop.remove();
+        enableMapInteractions();
+      });
+    } catch (error) {
+      console.error('Erro ao carregar modos:', error);
+    }
+  }
+
   function showGameModeSelector() {
     const backdrop = document.createElement('div');
     backdrop.className = 'quiz-backdrop';
@@ -76,6 +144,11 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="mode-title">Engenharia de Software</div>
             <div class="mode-desc">Perguntas sobre programação e desenvolvimento</div>
           </button>
+          <button class="mode-option" data-mode="custom">
+            <div class="mode-icon">🎨</div>
+            <div class="mode-title">Personalizado</div>
+            <div class="mode-desc">Modos criados pela comunidade</div>
+          </button>
         </div>
       </div>
     `;
@@ -85,16 +158,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const modeButtons = backdrop.querySelectorAll('.mode-option');
     modeButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        gameMode = btn.dataset.mode;
-        backdrop.remove();
-        enableMapInteractions();
+      btn.addEventListener('click', async () => {
+        const selectedMode = btn.dataset.mode;
         
-        // Exibe mensagem de confirmação
-        info.innerText = `Modo selecionado: ${gameMode === 'matematica' ? '🔢 Clássico' : '💻 Engenharia de Software'}`;
-        setTimeout(() => {
-          info.innerText = '';
-        }, 2000);
+        if (selectedMode === 'custom') {
+          backdrop.remove();
+          await showCustomModesList();
+        } else {
+          gameMode = selectedMode;
+          customModeId = null;
+          backdrop.remove();
+          enableMapInteractions();
+          
+          info.innerText = `Modo selecionado: ${gameMode === 'matematica' ? '🔢 Clássico' : '💻 Engenharia de Software'}`;
+          setTimeout(() => {
+            info.innerText = '';
+          }, 2000);
+        }
       });
     });
   }
@@ -129,7 +209,12 @@ document.addEventListener('DOMContentLoaded', () => {
     map.setView([-15.7797, -47.9297], 4);
 
     try {
-      const res = await fetch(`/api/start?mode=${gameMode}`);
+      let url = `/api/start?mode=${gameMode}`;
+      if (gameMode === 'custom' && customModeId) {
+        url += `&custom_mode_id=${customModeId}`;
+      }
+      
+      const res = await fetch(url);
       rodada = await res.json();
 
       endTime = rodada.fim * 1000;
@@ -151,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function startGame() {
     gameStarted = true;
     startBtn.style.display = 'none';
-    gameModeBtn.style.display = 'none'; // Esconde o botão de modo
+    gameModeBtn.style.display = 'none';
     await startRound();
   }
 
@@ -282,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       updateScoreDisplay();
       startBtn.style.display = 'block';
-      gameModeBtn.style.display = 'block'; // Mostra o botão de modo novamente
+      gameModeBtn.style.display = 'block';
       info.innerText = '';
       
       if (marker) {
@@ -333,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         updateScoreDisplay();
         startBtn.style.display = 'block';
-        gameModeBtn.style.display = 'block'; // Mostra o botão de modo novamente
+        gameModeBtn.style.display = 'block';
         info.innerText = '';
         
         if (marker) {

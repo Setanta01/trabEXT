@@ -114,7 +114,6 @@
             margin-top: 4px;
         }
 
-        /* Modal Backdrop */
         .quiz-backdrop {
             position: fixed;
             top: 0;
@@ -134,7 +133,6 @@
             to { opacity: 1; }
         }
 
-        /* Quiz Modal */
         .quiz-modal {
             background: white;
             border-radius: 16px;
@@ -211,7 +209,6 @@
             color: #e74c3c;
         }
 
-        /* Game Over Modal */
         .game-over-modal {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -312,7 +309,6 @@
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
         }
 
-        /* High Scores Modal */
         .highscores-modal {
             background: white;
             border-radius: 20px;
@@ -395,12 +391,11 @@
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
 
-        /* Game Mode Modal */
         .game-mode-modal {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 20px;
             padding: 40px;
-            max-width: 600px;
+            max-width: 700px;
             width: 90%;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
             animation: slideUp 0.4s ease;
@@ -424,7 +419,7 @@
 
         .game-mode-options {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
         }
 
@@ -499,6 +494,126 @@
             line-height: 1.4;
         }
 
+        /* Custom Modes List Modal */
+        .custom-modes-list-modal {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            animation: slideUp 0.4s ease;
+        }
+
+        .custom-modes-header {
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .custom-modes-description {
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        .custom-modes-container {
+            display: grid;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .custom-mode-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 3px solid transparent;
+        }
+
+        .custom-mode-card:hover {
+            transform: translateX(5px);
+            border-color: #667eea;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .custom-mode-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .custom-mode-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 8px;
+        }
+
+        .custom-mode-description-text {
+            font-size: 14px;
+            color: #34495e;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .custom-mode-date {
+            font-size: 12px;
+            color: #95a5a6;
+        }
+
+        .no-custom-modes {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+
+        .custom-modes-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-create-mode,
+        .btn-back-modes {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-create-mode {
+            background: white;
+            color: #667eea;
+        }
+
+        .btn-back-modes {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-create-mode:hover,
+        .btn-back-modes:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
         @media (max-width: 768px) {
             #startBtn, #highscoresBtn, #gameModeBtn {
                 font-size: 14px;
@@ -514,7 +629,7 @@
                 font-size: 22px;
             }
 
-            .quiz-modal, .game-over-modal, .highscores-modal, .game-mode-modal {
+            .quiz-modal, .game-over-modal, .highscores-modal, .game-mode-modal, .custom-modes-list-modal {
                 padding: 25px;
             }
 
@@ -535,8 +650,12 @@
                 grid-template-columns: 1fr;
             }
 
-            .game-mode-header {
+            .game-mode-header, .custom-modes-header {
                 font-size: 24px;
+            }
+
+            .custom-modes-actions {
+                flex-direction: column;
             }
         }
     </style>

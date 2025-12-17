@@ -4,6 +4,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Cache;
 use App\Models\Score;
+use App\Models\CustomGameMode;
+use App\Models\CustomQuestion;
 
 function buildMathQuiz(): array {
     $a = random_int(2, 12);
@@ -124,8 +126,106 @@ function buildEngineeringQuiz(): array {
     ];
 }
 
+function buildCustomQuiz($modeId, $cityName): ?array {
+    $mode = CustomGameMode::with('questions')->find($modeId);
+    
+    if (!$mode || $mode->questions->isEmpty()) {
+        return null;
+    }
+
+    // Filtra perguntas: específicas da cidade OU genéricas (city_name null)
+    $questions = $mode->questions->filter(function($q) use ($cityName) {
+        return $q->city_name === null || $q->city_name === $cityName;
+    });
+
+    if ($questions->isEmpty()) {
+        return null;
+    }
+
+    $selected = $questions->random();
+    $options = [
+        $selected->correct_answer,
+        $selected->wrong_answer_1,
+        $selected->wrong_answer_2,
+        $selected->wrong_answer_3
+    ];
+    shuffle($options);
+    $correctIndex = array_search($selected->correct_answer, $options, true);
+    $token = bin2hex(random_bytes(16));
+
+    return [
+        'question' => $selected->question,
+        'options' => $options,
+        'correctIndex' => $correctIndex,
+        'token' => $token,
+    ];
+}
+
 Route::get('/', fn() => view('mapa'));
 Route::get('/mapa', fn() => view('mapa'));
+Route::get('/criador-de-fase', fn() => view('criador'));
+
+// API para criar modo customizado
+Route::post('/api/custom-modes', function(Request $request) {
+    $validated = $request->validate([
+        'title' => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'creator_name' => 'nullable|string|max:100',
+        'questions' => 'required|array|min:1',
+        'questions.*.question' => 'required|string',
+        'questions.*.correct_answer' => 'required|string',
+        'questions.*.wrong_answer_1' => 'required|string',
+        'questions.*.wrong_answer_2' => 'required|string',
+        'questions.*.wrong_answer_3' => 'required|string',
+        'questions.*.city_name' => 'nullable|string',
+        'questions.*.city_lat' => 'nullable|numeric',
+        'questions.*.city_lng' => 'nullable|numeric',
+    ]);
+
+    $mode = CustomGameMode::create([
+        'title' => $validated['title'],
+        'description' => $validated['description'] ?? '',
+        'creator_name' => $validated['creator_name'] ?? 'Anônimo',
+    ]);
+
+    foreach ($validated['questions'] as $q) {
+        $mode->questions()->create([
+            'question' => $q['question'],
+            'correct_answer' => $q['correct_answer'],
+            'wrong_answer_1' => $q['wrong_answer_1'],
+            'wrong_answer_2' => $q['wrong_answer_2'],
+            'wrong_answer_3' => $q['wrong_answer_3'],
+            'city_name' => $q['city_name'] ?? null,
+            'city_lat' => $q['city_lat'] ?? null,
+            'city_lng' => $q['city_lng'] ?? null,
+        ]);
+    }
+
+    return response()->json([
+        'success' => true,
+        'mode_id' => $mode->id,
+        'message' => 'Modo criado com sucesso!'
+    ]);
+});
+
+// API para listar modos customizados
+Route::get('/api/custom-modes', function() {
+    $modes = CustomGameMode::withCount('questions')
+        ->orderBy('created_at', 'desc')
+        ->get()
+        ->map(function($mode) {
+            return [
+                'id' => $mode->id,
+                'title' => $mode->title,
+                'description' => $mode->description,
+                'creator_name' => $mode->creator_name,
+                'questions_count' => $mode->questions_count,
+                'created_at' => $mode->created_at->format('d/m/Y'),
+            ];
+        });
+
+    return response()->json($modes);
+});
 
 Route::get('/api/start', function (Request $request) {
     $cidades = [
@@ -141,8 +241,8 @@ Route::get('/api/start', function (Request $request) {
     $tempo = max(10, 20 - floor($currentRound / 3));
     $fim = now()->addSeconds($tempo);
 
-    // Armazena o modo de jogo escolhido
     $mode = $request->input('mode', 'matematica');
+    $customModeId = $request->input('custom_mode_id', null);
     
     session([
         'rodada' => $cidade,
@@ -152,7 +252,8 @@ Route::get('/api/start', function (Request $request) {
         'quiz' => null,
         'current_round' => $currentRound,
         'round_active' => true,
-        'game_mode' => $mode, // Salva o modo na sessão
+        'game_mode' => $mode,
+        'custom_mode_id' => $customModeId,
     ]);
 
     return response()->json([
@@ -261,10 +362,16 @@ Route::post('/api/check', function(Request $request){
         $cacheKey = 'quiz_lock_' . $cidade['id'];
 
         if (Cache::add($cacheKey, true, 5)) {
-            // Verifica o modo de jogo e gera o quiz apropriado
             $gameMode = session('game_mode', 'matematica');
+            $customModeId = session('custom_mode_id');
             
-            if ($gameMode === 'engenharia') {
+            if ($gameMode === 'custom' && $customModeId) {
+                $q = buildCustomQuiz($customModeId, $cidade['nome']);
+                if (!$q) {
+                    // Fallback para matemática se não houver perguntas
+                    $q = buildMathQuiz();
+                }
+            } elseif ($gameMode === 'engenharia') {
                 $q = buildEngineeringQuiz();
             } else {
                 $q = buildMathQuiz();
@@ -376,7 +483,7 @@ Route::post('/api/game-over', function(Request $request) {
         ]);
     }
     
-    session()->forget(['rodada', 'fim', 'found', 'result', 'quiz', 'current_round', 'score', 'round_active', 'game_mode']);
+    session()->forget(['rodada', 'fim', 'found', 'result', 'quiz', 'current_round', 'score', 'round_active', 'game_mode', 'custom_mode_id']);
     
     return response()->json(['ok' => true]);
 });
