@@ -614,27 +614,68 @@
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
         }
 
+        /* Responsivo - Mobile */
         @media (max-width: 768px) {
             #startBtn, #highscoresBtn, #gameModeBtn {
-                font-size: 14px;
-                padding: 10px 18px;
+                font-size: 13px;
+                padding: 8px 14px;
+            }
+
+            #startBtn {
+                top: 10px;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+
+            #gameModeBtn {
+                top: 50px;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+
+            #highscoresBtn {
+                right: 10px;
+                top: 10px;
+                padding: 8px 14px;
+                font-size: 12px;
             }
 
             #scoreDisplay {
-                padding: 10px 14px;
-                min-width: 100px;
+                padding: 8px 12px;
+                min-width: 90px;
+                top: 10px;
+                left: 10px;
+            }
+
+            .score-label {
+                font-size: 10px;
             }
 
             .score-value {
-                font-size: 22px;
+                font-size: 20px;
+                margin: 2px 0;
             }
 
-            .quiz-modal, .game-over-modal, .highscores-modal, .game-mode-modal, .custom-modes-list-modal {
-                padding: 25px;
+            .round-label {
+                font-size: 11px;
+            }
+
+            #info {
+                top: 100px;
+                font-size: 13px;
+                padding: 8px 12px;
+                max-width: 90%;
+            }
+
+            .quiz-modal, .game-over-modal, .highscores-modal, 
+            .game-mode-modal, .custom-modes-list-modal {
+                padding: 20px;
+                max-width: 95%;
             }
 
             .game-over-stats {
                 grid-template-columns: 1fr;
+                gap: 12px;
             }
 
             .highscore-item {
@@ -651,11 +692,48 @@
             }
 
             .game-mode-header, .custom-modes-header {
-                font-size: 24px;
+                font-size: 22px;
             }
 
             .custom-modes-actions {
                 flex-direction: column;
+            }
+        }
+
+        /* Para telas muito pequenas */
+        @media (max-width: 480px) {
+            #startBtn, #gameModeBtn {
+                font-size: 12px;
+                padding: 7px 12px;
+                max-width: 150px;
+            }
+
+            #gameModeBtn {
+                top: 45px;
+            }
+
+            #highscoresBtn {
+                font-size: 11px;
+                padding: 7px 10px;
+            }
+
+            #scoreDisplay {
+                padding: 6px 10px;
+                min-width: 80px;
+            }
+
+            .score-value {
+                font-size: 18px;
+            }
+
+            .score-label, .round-label {
+                font-size: 9px;
+            }
+
+            #info {
+                top: 90px;
+                font-size: 12px;
+                padding: 6px 10px;
             }
         }
     </style>
